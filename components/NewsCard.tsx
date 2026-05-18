@@ -62,7 +62,7 @@ export default function NewsCard({ article }: NewsCardProps) {
           href={article.original_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
         >
           原文
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
