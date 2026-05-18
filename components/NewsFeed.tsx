@@ -8,6 +8,34 @@ import Header from './Header'
 
 type FilterCategory = 'all' | NewsCategory
 
+function getDateLabel(dateStr: string): string {
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const articleDate = new Date(dateStr)
+  const articleStart = new Date(articleDate.getFullYear(), articleDate.getMonth(), articleDate.getDate())
+  const diffDays = Math.round((todayStart.getTime() - articleStart.getTime()) / 86400000)
+
+  if (diffDays === 0) return '今天'
+  if (diffDays === 1) return '昨天'
+  if (diffDays <= 6) return `${diffDays} 天前`
+  return '更早'
+}
+
+function groupByDate(articles: NewsArticle[]): { label: string; items: NewsArticle[] }[] {
+  const order = ['今天', '昨天', '2 天前', '3 天前', '4 天前', '5 天前', '6 天前', '更早']
+  const map = new Map<string, NewsArticle[]>()
+
+  for (const a of articles) {
+    const label = getDateLabel(a.published_at)
+    if (!map.has(label)) map.set(label, [])
+    map.get(label)!.push(a)
+  }
+
+  return order
+    .filter((label) => map.has(label))
+    .map((label) => ({ label, items: map.get(label)! }))
+}
+
 function SkeletonCard() {
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse">
@@ -52,6 +80,8 @@ export default function NewsFeed() {
     ? articles
     : articles.filter((a) => a.category === activeCategory)
 
+  const groups = groupByDate(filtered)
+
   const counts: Record<string, number> = {}
   for (const a of articles) {
     counts[a.category] = (counts[a.category] || 0) + 1
@@ -62,7 +92,6 @@ export default function NewsFeed() {
       <Header onRefresh={fetchArticles} isRefreshing={loading} lastUpdated={lastUpdated} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Category Filter */}
         <div className="mb-6">
           <CategoryFilter
             active={activeCategory}
@@ -71,19 +100,6 @@ export default function NewsFeed() {
           />
         </div>
 
-        {/* Stats Bar */}
-        {!loading && articles.length > 0 && (
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-sm text-gray-500">
-              显示 <span className="font-semibold text-gray-900">{filtered.length}</span> 条新闻
-              {activeCategory !== 'all' && (
-                <span className="text-gray-400"> · {activeCategory}</span>
-              )}
-            </span>
-          </div>
-        )}
-
-        {/* News Grid */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {Array.from({ length: 9 }).map((_, i) => (
@@ -101,9 +117,21 @@ export default function NewsFeed() {
             <p className="text-sm text-gray-400 mt-1">点击「抓取新闻」获取最新 AI 资讯</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((article) => (
-              <NewsCard key={article.id} article={article} />
+          <div className="space-y-8">
+            {groups.map(({ label, items }) => (
+              <section key={label}>
+                {/* Date group header */}
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-sm font-semibold text-gray-900">{label}</span>
+                  <span className="text-xs text-gray-400 font-mono">{items.length} 条</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {items.map((article) => (
+                    <NewsCard key={article.id} article={article} />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
