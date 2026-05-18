@@ -49,7 +49,7 @@ export default function NewsCard({ article }: NewsCardProps) {
         {article.title_zh || article.title}
       </h2>
 
-      <p className="text-sm text-gray-600 leading-relaxed line-clamp-3 mb-4">
+      <p className="text-sm text-gray-600 leading-relaxed mb-4">
         {article.summary_zh}
       </p>
 
