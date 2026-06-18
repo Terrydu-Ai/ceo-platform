@@ -1,16 +1,37 @@
-import { fetchAllFeeds } from './news-fetcher'
+import { fetchFeedsForBusiness } from './news-fetcher'
 import { processBatch } from './claude-processor'
 import { getSupabaseAdmin } from './supabase'
-import type { FetchNewsResult } from '@/types/news'
+import { BUSINESSES, type Business, type FetchNewsResult } from '@/types/news'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-export async function runNewsFetch(): Promise<FetchNewsResult> {
-  let inserted = 0
-  let skipped = 0
-  let errors = 0
+type Counts = { inserted: number; skipped: number; errors: number }
 
+// Fetch + process + store news for the given business channels.
+// Defaults to every channel (CEO + all business channels), which is what the
+// cron job and dashboard refresh button use.
+export async function runNewsFetch(
+  businesses: Business[] = BUSINESSES
+): Promise<FetchNewsResult> {
   const db = getSupabaseAdmin()
-  const rawArticles = await fetchAllFeeds()
-  if (rawArticles.length === 0) return { inserted, skipped, errors }
+  const total: Counts = { inserted: 0, skipped: 0, errors: 0 }
+  const byBusiness: Record<string, Counts> = {}
+
+  for (const business of businesses) {
+    const counts = await runForBusiness(db, business)
+    byBusiness[business] = counts
+    total.inserted += counts.inserted
+    total.skipped += counts.skipped
+    total.errors += counts.errors
+  }
+
+  return { ...total, byBusiness }
+}
+
+async function runForBusiness(db: SupabaseClient, business: Business): Promise<Counts> {
+  const counts: Counts = { inserted: 0, skipped: 0, errors: 0 }
+
+  const rawArticles = await fetchFeedsForBusiness(business)
+  if (rawArticles.length === 0) return counts
 
   const urls = rawArticles.map((a) => a.link).filter(Boolean)
   const { data: existing } = await db
@@ -20,11 +41,11 @@ export async function runNewsFetch(): Promise<FetchNewsResult> {
 
   const existingUrls = new Set((existing || []).map((r: { original_url: string }) => r.original_url))
   const newArticles = rawArticles.filter((a) => a.link && !existingUrls.has(a.link))
-  skipped = rawArticles.length - newArticles.length
+  counts.skipped = rawArticles.length - newArticles.length
 
-  if (newArticles.length === 0) return { inserted, skipped, errors }
+  if (newArticles.length === 0) return counts
 
-  const processed = await processBatch(newArticles)
+  const processed = await processBatch(newArticles, business)
 
   const rows = processed.map(({ article, processed: p }) => ({
     title: article.title,
@@ -32,20 +53,19 @@ export async function runNewsFetch(): Promise<FetchNewsResult> {
     summary_zh: p.summary_zh,
     original_url: article.link,
     source: article.source,
+    business,
     category: p.category,
     published_at: article.publishedAt.toISOString(),
   }))
 
   if (rows.length > 0) {
-    const { error } = await db
-      .from('news_articles')
-      .insert(rows)
+    const { error } = await db.from('news_articles').insert(rows)
     if (error) {
-      errors = rows.length
+      counts.errors = rows.length
     } else {
-      inserted = rows.length
+      counts.inserted = rows.length
     }
   }
 
-  return { inserted, skipped, errors }
+  return counts
 }
