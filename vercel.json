@@ -1,8 +1,12 @@
 {
   "crons": [
     {
-      "path": "/api/fetch-news",
+      "path": "/api/fetch-news?business=ceo",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/fetch-news?business=djj,likehome,ele",
+      "schedule": "30 1 * * *"
     }
   ]
 }
